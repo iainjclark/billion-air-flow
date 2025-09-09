@@ -14,6 +14,8 @@
 
 A full end-to-end data engineering project: ingesting, transforming, and benchmarking 1B+ NYC Taxi & Limousine Commission (TLC) trip records (2009–present), using Apache Airflow for orchestration and Polars/Dask for scalable analytics. 👋🚖 Taxi!
 
+<img src="assets/nyc-taxis.jpg" alt="NYC Taxi" width="95%">
+
 ## Project Narrative
 This repo demonstrates data engineering that scales to 1B+ rows:
 - **Ingest** raw monthly TLC trip data from the [NYC TLC dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
