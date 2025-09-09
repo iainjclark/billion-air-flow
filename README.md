@@ -1,5 +1,15 @@
 # billion-air-flow
 
+![Python](https://img.shields.io/badge/python-3.10-blue)
+![OS](https://img.shields.io/badge/OS-Ubuntu%2022.04-orange)
+![Airflow](https://img.shields.io/badge/orchestration-Apache%20Airflow-blueviolet)
+![Analytics](https://img.shields.io/badge/engine-Polars%20%7C%20Dask%20%7C%20PyArrow-lightgrey)
+![License](https://img.shields.io/badge/license-Apache%202.0-green)
+![Status](https://img.shields.io/badge/status-WIP-yellow)
+![Built with 🛠️](https://img.shields.io/badge/built%20with-%F0%9F%9B%A0%EF%B8%8F-blue)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-blue?logo=linkedin)](https://www.linkedin.com/in/iainjclark/)
+
+
 🚕 **Scalable end-to-end ETL pipeline** for NYC Taxi & Limousine Commission (TLC) Trip Record Data — 1B+ rows of rides since 2009.
 
 A full end-to-end data engineering project: ingesting, transforming, and benchmarking 1B+ NYC Taxi & Limousine Commission (TLC) trip records (2009–present), using Apache Airflow for orchestration and Polars/Dask for scalable analytics. 👋🚖 Taxi!
