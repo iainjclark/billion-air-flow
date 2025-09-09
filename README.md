@@ -30,8 +30,32 @@ flowchart LR
     E --> F[🌀 Orchestration: Apache Airflow]
 ```
 
-## Project Narrative
-This repo demonstrates data engineering that scales to 1B+ rows:
+## You Jump Into The Taxi
+
+"Hey boss, where do you wanna go?" asks the taxi driver, taking a swig of his caw-fee.
+
+And that is the question. There is a whole ton of data there! But first, you have to marshal it and get it all into one place.
+Without that, you are not going to be able to get any insights. And, as I like to say, with great data comes great responsibility.
+
+This repo shows you how to do that - in a performant, responsible way.
+
+Like a New York fairytale — the lights, the buzz, not much sleep — the cabbie pulls away from the kerb. For him - and us - it's time to get to work.
+
+## 🛠️ Technical Project Introduction
+
+The dataset available to us is the [NYC TLC dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and it is 
+extensive. It contains trip records dating back to 2009, with **billions of individual taxi rides** across multiple services (yellow cabs, green cabs, and for-hire vehicles).  
+Each monthly CSV file is hundreds of MBs, and the entire corpus is measured in **terabytes** if uncompressed.
+
+This creates both an opportunity and a challenge:
+
+- **Opportunity**: The dataset captures the pulse of New York City — trips, fares, tips, time-of-day patterns, and borough-level dynamics over more than a decade.  
+- **Challenge**: Working at this scale requires data engineering techniques that go beyond local CSV processing. Efficient ingestion, storage, and analytics are essential.
+
+The driver makes a right onto Mechanics Alley on the Lower East Side, and we pull up at the job site. Showtime.
+
+## Engineering Overview
+I demonstrate data engineering techniques which scale to 1B+ rows:
 - **Ingest** raw monthly TLC trip data from the [NYC TLC dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 - **Transform** into partitioned Parquet files (clean timestamps, fares, locations).
 - **Benchmark** Pandas vs Polars (and Dask?) on datasets from 10M → 1B rows.
