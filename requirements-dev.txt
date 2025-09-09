@@ -1,0 +1,7 @@
+jupyterlab
+pandas
+polars
+dask[complete]
+pyarrow
+matplotlib
+seaborn

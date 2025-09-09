@@ -1,0 +1,12 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual envs
+.env/
+.venv/
+*.egg-info/
+
+# VSCode
+.vscode/
