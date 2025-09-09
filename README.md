@@ -17,7 +17,7 @@ A full end-to-end data engineering project: ingesting, transforming, and benchma
 <img src="assets/nyc-taxis.jpg" alt="NYC Taxi" width="97%">
 <br/>
 
-<p align="center">⚠️ 🚧 **TRAFFIC ADVISORY: Congestion on Pandas Avenue ahead. Consider taking Polars Freeway** 🚧 ⚠️</p>
+<p align="center">⚠️ 🚧 <B>TRAFFIC ADVISORY: Congestion on Pandas Avenue ahead. Consider taking Polars Freeway</b> 🚧 ⚠️</p>
 
 ```mermaid
 %%{init: { "theme": "default", "themeVariables": {}, "flowchart": { "htmlLabels": true }, "securityLevel": "strict" , "themeCSS": ".mermaid .controls{display:none;}"} }%%
