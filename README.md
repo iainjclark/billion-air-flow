@@ -1,4 +1,4 @@
-# Billion-Air-Flow
+# billion-air-flow
 
 🚕 **Scalable end-to-end ETL pipeline** for NYC Taxi & Limousine Commission (TLC) Trip Record Data — 1B+ rows of rides since 2009.
 
@@ -12,7 +12,7 @@ This repo demonstrates data engineering that scales to 1B+ rows:
 - **Output** aggregated insights (avg fare per borough, trips per hour).
 - **Orchestrate** with Apache Airflow (work in progress).
 
-Developed on Python 3.11.13 for maximum stability with Apache Airflow 2.8+ and modern data libraries (Polars, Dask, PyArrow).
+Developed on Python 3.10 for compatibility with Ubuntu 22.04 LTS and stability with Apache Airflow 2.8+ and modern data libraries (Polars, Dask, PyArrow). Testing against Ubuntu 24.04 LTS / Python 3.12 is planned.
 
 ```bash
 mamba install pandas polars dask pyarrow matplotlib seaborn
