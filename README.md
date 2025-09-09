@@ -15,9 +15,10 @@
 A full end-to-end data engineering project: ingesting, transforming, and benchmarking 1B+ NYC Taxi & Limousine Commission (TLC) trip records (2009–present), using Apache Airflow for orchestration and ~~Pandas~~/Polars for more scalable analytics. 👋🚖 Taxi!
 
 <img src="assets/nyc-taxis.jpg" alt="NYC Taxi" width="97%">
-<br/>
 
-<p align="center">⚠️ 🚧 <B>TRAFFIC ADVISORY: Congestion on Pandas Avenue ahead. Consider taking Polars Freeway</b> 🚧 ⚠️</p>
+<div align="center">
+⚠️ 🚧 <strong>TRAFFIC ADVISORY:</strong> <B>Congestion on Pandas Avenue ahead. Consider taking Polars Freeway</b> 🚧 ⚠️
+</div>
 
 ```mermaid
 %%{init: { "theme": "default", "themeVariables": {}, "flowchart": { "htmlLabels": true }, "securityLevel": "strict" , "themeCSS": ".mermaid .controls{display:none;}"} }%%
