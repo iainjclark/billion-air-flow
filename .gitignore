@@ -10,3 +10,39 @@ __pycache__/
 
 # VSCode
 .vscode/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints  
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Data dictionaries
+data/
+staging
+parquet/
+archive/
+raw
+logs/
+*.csv
+*.parquet
+
+ # Airflow artifacts
+airflow/logs/
+airflow/__pycache__/
+airflow/dags/__pycache__/
+unittests.cfg
+
+# Bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual envs
+.env/
+.venv/
+*.egg-info/
+
+# VSCode
+.vscode/
