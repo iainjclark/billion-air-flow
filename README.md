@@ -64,6 +64,30 @@ I demonstrate data engineering techniques which scale to 1B+ rows:
 
 Developed on Python 3.10 for compatibility with Ubuntu 22.04 LTS and stability with Apache Airflow 2.8+ and modern data libraries (Polars - Dask? PyArrow?). Testing against Ubuntu 24.04 LTS / Python 3.12 is planned.
 
+## 🛠️ Hardware
+
+Dell Precision 3431 SFF — Intel i7-8700 (6c/12t), 64 GB DDR4-2666, Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND), Seagate IronWolf 6 TB SATA HDD, Quadro P400.
+
+This rig was chosen for being super-compact, quiet, lightweight (5.5 kg), and exceptionally inexpensive (A$250 for the base system: 16 GB RAM, no SATA HDD; RAM and storage upgrades were added after delivery). While not the kind of machine one normally expects to be crunching billion-row datasets, this project demonstrates what is possible with near-legacy hardware, a tight budget, a little ingenuity — and an OLAP database management system named after a duck 🦆.
+
+## 📥 Ingesting the Data
+
+To start, I used a PowerShell script in Windows 10 to download all Parquet files onto the OS boot disk — an Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND). This serves as the **initial hot staging tier** before moving the corpus to local cold storage on a Seagate IronWolf 6 TB SATA HDD.
+
+Because the Intel 660p is a QLC drive, bulk writes can be much slower once the SLC cache is exhausted. The boot disk will therefore be upgraded to a Samsung 990 PRO (TLC NAND, PCIe 4.0) and configured for dual-boot with Windows 10 and Ubuntu Linux 22.04 LTS, with a dedicated hot-staging partition.
+
+Note that additional data and extra context can be found at [NYC Open Data](https://opendata.cityofnewyork.us/).
+
+Data ingestion and initial staging were carried out on the stock SSD — no reason to wait!
+
+In PowerShell:
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\scripts\download_tlc.ps1
+```
+
+## 📦 Installing the Libraries
+
 ```bash
 mamba install pandas polars dask pyarrow matplotlib seaborn
 pip install apache-airflow==2.8.*
@@ -77,8 +101,6 @@ pip install apache-airflow==2.8.*
 - `scripts/` – ETL transformations.
 - `requirements-dev.txt` – Pip environment.
 - `environment-dev.yml` – Conda/Mamba environment.
-
-
 
 ## Next Steps
 1. Proof-of-concept ETL on sample months (10M rows).
