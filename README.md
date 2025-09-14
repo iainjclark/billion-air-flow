@@ -49,8 +49,8 @@ Each monthly CSV file is hundreds of MBs, and the entire corpus is measured in *
 
 This creates both an opportunity and a challenge:
 
-- **Opportunity**: The dataset captures the pulse of New York City — trips, fares, tips, time-of-day patterns, and borough-level dynamics over more than a decade.  
-- **Challenge**: Working at this scale requires data engineering techniques that go beyond local CSV processing. Efficient ingestion, storage, and analytics are essential.
+- The dataset captures the pulse of New York City — trips, fares, tips, time-of-day patterns, and borough-level dynamics over more than a decade.  
+- Working at this scale requires data engineering techniques that go beyond local CSV processing. Efficient ingestion, storage, and analytics are essential.
 
 The driver makes a right onto Mechanics Alley on the Lower East Side, and we pull up at the job site. Showtime.
 
@@ -70,11 +70,19 @@ Dell Precision 3431 SFF — Intel i7-8700 (6c/12t), 64 GB DDR4-2666, Intel 660p 
 
 This rig was chosen for being super-compact, quiet, lightweight (5.5 kg), and exceptionally inexpensive (A$250 for the base system: 16 GB RAM, no SATA HDD; RAM and storage upgrades were added after delivery). While not the kind of machine one normally expects to be crunching billion-row datasets, this project demonstrates what is possible with near-legacy hardware, a tight budget, a little ingenuity — and an OLAP database management system named after a duck 🦆.
 
+## 💾 OS and Storage
+
+Configured as a **triple-boot** rig with lean partitioning: Windows 10 Pro (128 GB) / Ubuntu 22.04 LTS (64 GB) / Ubuntu 24.04 LTS (64 GB), leaving ~680 GB on the NVMe as a **shared hot staging tier**.  
+- **Tier 1 (NVMe SSD, 1 TB)** — Hot staging tier; for active analytics.  
+- **Tier 2 (HDD, 6 TB IronWolf 7200 RPM)** — Warm archive of Parquet datasets.  
+- **Tier 3 (AWS S3)** — Cold, durable storage + cloud analytics.
+- **Tier 4 (USB 3.2 Gen 2x2; optional)** — buffer/pre-staging/cache layer for transfer between HDD and NVMe. Candidates are Lexar SL500, Samsung T9 or Crucial X10 Pro. 1TB suffices, given size of NVMe SSD.
+
+Because the Intel 660p is a QLC drive, bulk writes are expected to be considerably slower once the SLC cache is exhausted. The Tier 1 disk will therefore be upgraded to a Samsung 990 PRO (TLC NAND, PCIe 4.0), retaining the same partitioning.
+
 ## 📥 Ingesting the Data
 
-To start, I used a PowerShell script in Windows 10 to download all Parquet files onto the OS boot disk — an Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND). This serves as the **initial hot staging tier** before moving the corpus to local cold storage on a Seagate IronWolf 6 TB SATA HDD.
-
-Because the Intel 660p is a QLC drive, bulk writes can be much slower once the SLC cache is exhausted. The boot disk will therefore be upgraded to a Samsung 990 PRO (TLC NAND, PCIe 4.0) and configured for dual-boot with Windows 10 and Ubuntu Linux 22.04 LTS, with a dedicated hot-staging partition.
+To start, I used a PowerShell script in Windows 10 to download all Parquet files onto Tier 1 storage, before moving the corpus to local warm storage on the Tier 2 drive.
 
 Note that additional data and extra context can be found at [NYC Open Data](https://opendata.cityofnewyork.us/).
 
