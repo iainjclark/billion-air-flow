@@ -106,7 +106,7 @@ def get_ram_info():
     vm = psutil.virtual_memory()
 
     # Round to nearest "whole GB"
-    total_gb = round(vm.total / (1024 ** 3))
+    total_gb = vm.total / (1000 ** 3)
 
     ram_speed = None
     system = platform.system()
