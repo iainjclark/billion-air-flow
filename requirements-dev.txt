@@ -1,7 +1,9 @@
-jupyterlab
+ipykernel
 pandas
 polars
-dask[complete]
+dask
 pyarrow
 matplotlib
 seaborn
+jupyterlab
+duckdb
