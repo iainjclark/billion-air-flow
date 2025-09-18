@@ -2,7 +2,7 @@ name: billion-air-flow
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python=3.10
   - ipykernel
   - pandas
   - polars
@@ -11,3 +11,5 @@ dependencies:
   - matplotlib
   - seaborn
   - jupyterlab
+  - duckdb
+  
