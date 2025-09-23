@@ -80,6 +80,25 @@ Configured as a **triple-boot** rig with lean partitioning: Windows 10 Pro (128 
 
 Because the Intel 660p is a QLC drive, bulk writes are expected to be considerably slower once the SLC cache is exhausted. The Tier 1 disk will therefore be upgraded to a Samsung 990 PRO (TLC NAND, PCIe 4.0), retaining the same partitioning.
 
+## Software
+
+mamba-forge was installed from [MiniForge](https://github.com/conda-forge/miniforge/releases/download/25.3.0-3/Miniforge3-25.3.0-3-Linux-x86_64.sh) and used to set up
+jupyter in its own dedicated kernel, and Python 3.10 with the libraries required in its own virtual environment py3a-baf. 
+
+```bash
+wget https://github.com/conda-forge/miniforge/releases/download/25.3.0-3/Miniforge3-25.3.0-3-Linux-x86_64.sh
+chmod +x Miniforge3-25.3.0-3-Linux-x86_64.sh
+bash Miniforge3-25.3.0-3-Linux-x86_64.sh
+source ~/miniforge3/bin/activate
+mamba shell init --shell bash --root-prefix=~/miniforge3
+mamba create -n jupyterenv python jupyterlab ipykernel
+git clone -b trunk https://github.com/iainjclark/billion-air-flow.git
+cd $YOUR_GITS/billion-air-flow
+mamba create -n py3a-baf python=3.10
+mamba activate py3a-baf
+mamba env update -f environment-dev.yml --prune
+```
+
 ## 📥 Ingesting the Data
 
 To start, I used a PowerShell script in Windows 10 to download all Parquet files onto Tier 1 storage, before moving the corpus to local warm storage on the Tier 2 drive.
