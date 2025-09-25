@@ -66,7 +66,7 @@ Developed on Python 3.10 for compatibility with Ubuntu 22.04 LTS and stability w
 
 ## 🛠️ Hardware
 
-Dell Precision 3431 SFF — Intel i7-8700 (6c/12t), 64 GB DDR4-2666, Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND), Seagate IronWolf 6 TB SATA HDD, Quadro P400.
+Dell Precision 3431 SFF — Intel i7-8700 (6c/12t), 16 GB DDR4-2666, Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND), Seagate IronWolf 6 TB SATA HDD, Quadro P400. Which we will upgrade to 32GB RAM and then 64GB RAM.
 
 This rig was chosen for being super-compact, quiet, lightweight (5.5 kg), and exceptionally inexpensive (A$250 for the base system: 16 GB RAM, no SATA HDD; the 6TB drive was added after delivery). While not the kind of machine one normally expects to be crunching billion-row datasets, this project demonstrates what is possible with near-legacy hardware, a tight budget, a little ingenuity — and an OLAP database management system named after a duck 🦆.
 
