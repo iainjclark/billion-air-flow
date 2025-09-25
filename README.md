@@ -68,17 +68,19 @@ Developed on Python 3.10 for compatibility with Ubuntu 22.04 LTS and stability w
 
 Dell Precision 3431 SFF — Intel i7-8700 (6c/12t), 16 GB DDR4-2666, Intel 660p NVMe SSD (1 TB, PCIe 3.0 ×4, QLC NAND), Seagate IronWolf 6 TB SATA HDD, Quadro P400. Which we will upgrade to 32GB RAM and then 64GB RAM.
 
-This rig was chosen for being super-compact, quiet, lightweight (5.5 kg), and exceptionally inexpensive (A$250 for the base system: 16 GB RAM, no SATA HDD; the 6TB drive was added after delivery). While not the kind of machine one normally expects to be crunching billion-row datasets, this project demonstrates what is possible with near-legacy hardware, a tight budget, a little ingenuity — and an OLAP database management system named after a duck 🦆.
+This rig was chosen for being super-compact, quiet, lightweight (5.5 kg), and exceptionally inexpensive (A$250 for the base system: 16 GB RAM, no SATA HDD; the 6TB drive was added after delivery). While not the kind of machine one normally expects to be crunching billion-row datasets, this project demonstrates what is possible with near-legacy hardware, a tight budget, a little ingenuity — and an OLAP database management system 🦆.
 
 ## 💾 OS and Storage
 
 Configured as a **triple-boot** rig with lean partitioning: Windows 10 Pro (128 GB) / Ubuntu 22.04 LTS (64 GB) / Ubuntu 24.04 LTS (64 GB), leaving ~680 GB on the NVMe as a **shared hot staging tier**.  
-- **Tier 1 (NVMe SSD, 1 TB)** — Hot staging tier; for active analytics.  
-- **Tier 2 (HDD, 6 TB IronWolf 7200 RPM)** — Warm archive of Parquet datasets.  
-- **Tier 3 (AWS S3)** — Cold, durable storage + cloud analytics.
-- **Tier 4 (USB 3.2 Gen 2x2; optional)** — buffer/pre-staging/cache layer for transfer between HDD and NVMe. Candidates are Lexar SL500, Samsung T9 or Crucial X10 Pro. 1TB suffices, given size of NVMe SSD.
+- **Tier 1 (NVMe SSD, 1 TB)** — Hot staging tier; for active analytics and Parquet datasets.  
+- **Tier 2 (HDD, 6 TB IronWolf 7200 RPM)** — Cold storage of CSV datasets.  
+- **Tier 3 (AWS S3)** — Active cloud analytics.
+- **Tier 4 (USB 3.2 Gen 2x2; optional)** — Warm storage: buffer/pre-staging/cache layer for transfer between HDD and NVMe. Candidates are Lexar SL500, Samsung T9 or Crucial X10 Pro.
 
 Because the Intel 660p is a QLC drive, bulk writes are expected to be considerably slower once the SLC cache is exhausted. The Tier 1 disk will therefore be upgraded to a Samsung 990 PRO (TLC NAND, PCIe 4.0), retaining the same partitioning.
+
+The final upgrade planned is to swap out the i7-8700 for the 9th gen i7-9700.
 
 ## Software
 
@@ -92,7 +94,7 @@ bash Miniforge3-25.3.0-3-Linux-x86_64.sh
 source ~/miniforge3/bin/activate
 mamba shell init --shell bash --root-prefix=~/miniforge3
 mamba create -n jupyterenv python jupyterlab ipykernel
-git clone -b trunk https://github.com/iainjclark/billion-air-flow.git
+git clone https://github.com/iainjclark/billion-air-flow.git
 cd $YOUR_GITS/billion-air-flow
 mamba create -n py3a-baf python=3.10
 mamba activate py3a-baf
