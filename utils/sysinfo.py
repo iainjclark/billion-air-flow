@@ -5,13 +5,19 @@ Provides CPU, RAM, GPU, and storage diagnostic info plus a top-style dashboard.
 Works on Windows and Linux (Ubuntu).
 """
 
-import GPUtil
 import math
 import platform
 import psutil
 import re
 import shutil
 import subprocess
+
+checkGPU = False
+try:
+    import GPUtil
+    checkGPU = True
+except ImportError:
+    checkGPU = False
 
 
 # ------------------------------
@@ -268,6 +274,66 @@ def get_ram_info():
             except Exception as e2:
                 ram_info["Error"] = f"Linux query failed: {e2}"
 
+    elif system == "Darwin":  # macOS
+        try:
+            # Total RAM
+            total_bytes = int(subprocess.check_output(
+                ["sysctl", "-n", "hw.memsize"], text=True).strip()
+            )
+            ram_info["Advertised RAM (GB)"] = round(total_bytes / (1024**3))
+
+            sizes, speeds, types = [], [], []
+
+            # Always parse plain text (since XML is unreliable on older Macs)
+            text_out = subprocess.check_output(
+                ["system_profiler", "SPMemoryDataType"],
+                text=True, errors="ignore"
+            )
+
+            # Sizes (lines like "Size: 2 GB")
+            size_matches = re.findall(r"Size:\s+(\d+)\s+GB", text_out)
+            if size_matches:
+                sizes = [int(s) for s in size_matches if s.isdigit()]
+
+            # Types: "Type: DDR3" or "Type: Empty"
+            type_matches = re.findall(r"Type:\s*([A-Za-z0-9]+)", text_out, flags=re.IGNORECASE)
+            if type_matches:
+                # Remove "Empty"
+                cleaned_types = [t for t in type_matches if t.lower() != "empty"]
+
+                if cleaned_types:
+                    # Collapse to single string if all the same
+                    if all(x == cleaned_types[0] for x in cleaned_types):
+                        ram_info["Memory Type"] = cleaned_types[0]
+                    else:
+                        ram_info["Memory Type"] = cleaned_types
+
+            if types:
+                ram_info["Memory Type"] = types[0] if len(types) == 1 else types
+
+            # Speeds (lines like "Speed: 1333 MHz")
+            speed_matches = re.findall(r"Speed:\s+(\d+)\s+MHz", text_out)
+            if speed_matches:
+                speeds = [int(s) for s in speed_matches]
+
+            # Populate results
+            if sizes:
+                ram_info["DIMM Sizes (GB)"] = sizes
+            if speeds:
+                ram_info["Memory Speed (MHz)"] = sorted(set(speeds))
+            if types:
+                ram_info["Memory Type"] = types[0] if len(types) == 1 else types
+
+            # Slot count
+            slot_matches = re.findall(r"BANK \d+/DIMM\d+:", text_out)
+            ram_info["Slots Used"] = len(sizes)
+            ram_info["Slots Total"] = len(slot_matches)
+
+        except Exception as e:
+            ram_info["Error"] = f"macOS query failed: {e}"
+
+
+
     else:
         ram_info["Error"] = "Unsupported OS"
 
@@ -422,12 +488,16 @@ def system_summary():
         cpu += f" ({cores}c/{threads}t)"
 
     # RAM
-#    ram_total = psutil.virtual_memory().total / (1000*1024**2)
-    ram_total = sysinfo["RAM"].get("Advertised RAM (GB)", [])
+    ram_total = sysinfo["RAM"].get("Advertised RAM (GB)")
+    ram_type = sysinfo["RAM"].get("Memory Type", "DDR?")
     ram_speed = sysinfo["RAM"].get("Memory Speed (MHz)", [])
-    ram_speed_str = f"-{','.join(map(str, ram_speed))}" if ram_speed else ""
-    ram_str = f"{ram_total}GB DDR{ram_speed_str}"
 
+    # Format speed nicely (e.g. "1333" → "1333")
+    ram_speed_str = f"-{','.join(map(str, ram_speed))}" if ram_speed else ""
+
+    # Final string, e.g. "4 GB DDR3-1333 RAM"
+    ram_str = f"{ram_total} GB {ram_type}{ram_speed_str} RAM"
+    
     # Storage
     storage_parts = []
     for d in sysinfo["Storage"]:
@@ -438,12 +508,19 @@ def system_summary():
     storage_str = " | ".join(storage_parts)
 
     # GPU
-    gpu = ",".join(sysinfo["GPU"]) if sysinfo["GPU"] else "No GPU"
+    if checkGPU: 
+        gpu = ",".join(sysinfo["GPU"]) if sysinfo["GPU"] else "No GPU"
+    else:
+        gpu = ""
 
     # OS
     os_info = sysinfo["OS"]
 
-    return f"{system_model} | {cpu} | {ram_str} RAM | {storage_str} | {os_info} | {gpu}"
+    retStr = f"{system_model} | {cpu} | {ram_str} RAM | {storage_str} | {os_info}"
+    if gpu:
+        retStr += f" | GPU: {gpu}"
+
+    return retStr
 
 
 # ------------------------------
@@ -483,4 +560,5 @@ def snapshot_dashboard():
 # ------------------------------
 
 if __name__ == "__main__":
-    print(system_summary())
+    print(get_ram_info())
+    print(system_summary())    
