@@ -335,6 +335,26 @@ def get_storage_info():
 # OS
 # ------------------------------
 
+import platform
+import subprocess
+
+def get_MacOS_version() -> str:
+    """
+    Return a string describing the macOS version and Darwin kernel version.
+    Example: 'macOS 14.3.1 (Darwin 23.4.0)'
+    """
+    try:
+        product = subprocess.check_output(
+            ["sw_vers", "-productName"], text=True
+        ).strip()
+        version = subprocess.check_output(
+            ["sw_vers", "-productVersion"], text=True
+        ).strip()
+        kernel = platform.release()  # Darwin kernel version, e.g. '23.4.0'
+        return f"{product} {version} (Darwin {kernel})"
+    except Exception as e:
+        return f"macOS (Darwin {platform.release()}) - version lookup failed: {e}"
+
 def get_linux_distro():
     try:
         with open("/etc/os-release") as f:
@@ -351,6 +371,8 @@ def get_os_info():
     system = platform.system()
     if system == "Linux":
         return get_linux_distro()
+    elif system == "Darwin":
+        return get_MacOS_version()
     elif system == "Windows":
         try:
             cmd = ["powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption"]
