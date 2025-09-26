@@ -1,8 +1,8 @@
 """
-System Diagnostics Utilities for Billion-Air-Flow
+System Diagnostics Utilities
 
 Provides CPU, RAM, GPU, and storage diagnostic info plus a top-style dashboard.
-Works on Windows and Linux (Ubuntu).
+Works on Windows, Linux (Ubuntu), and macOS.
 """
 
 import math
@@ -19,15 +19,16 @@ try:
 except ImportError:
     checkGPU = False
 
-
 # ------------------------------
 # System Model
 # ------------------------------
 
 def get_system_model():
-    """Return system model string for Windows/Linux."""
+    """Return system model string for Windows/Linux/macOS."""
     try:
-        if platform.system() == "Windows":
+        system = platform.system()
+
+        if system == "Windows":
             version = subprocess.check_output(
                 [
                     "powershell", "-Command",
@@ -37,7 +38,7 @@ def get_system_model():
                 text=True
             ).strip()
 
-            if version=='':
+            if version == '':
                 queryStr = "Select-Object Vendor, Name | Format-Table -HideTableHeaders"
             else:
                 queryStr = "Select-Object Vendor, Version | Format-Table -HideTableHeaders"
@@ -50,25 +51,67 @@ def get_system_model():
                 text=True
             ).strip()
             return out
-        elif platform.system() == "Linux":
-            for path in [
-                "/sys/devices/virtual/dmi/id/product_name",
-                "/sys/devices/virtual/dmi/id/product_version",
-                "/sys/devices/virtual/dmi/id/product_family"
-            ]:
-                try:
-                    with open(path) as f:
-                        out = f.read().strip()
-                        if out and not out.isnumeric():
-                            return out
-                except FileNotFoundError:
-                    continue
-            return out.strip() or  platform.uname().node
+
+        elif system == "Linux":
+            vendor, model = None, None
+            try:
+                with open("/sys/devices/virtual/dmi/id/sys_vendor") as f:
+                    vendor = f.read().strip()
+            except FileNotFoundError:
+                pass
+            try:
+                with open("/sys/devices/virtual/dmi/id/product_name") as f:
+                    model = f.read().strip()
+            except FileNotFoundError:
+                pass
+            
+            if vendor:
+                vendor = vendor.strip()
+
+                # Remove trailing punctuation (.,)
+                vendor = re.sub(r"[.,\s]+$", "", vendor)
+
+                # Remove common company suffixes
+                vendor = re.sub(r"\b(inc|inc\.|ltd|ltd\.|corp|co\.?)\b$", "", vendor, flags=re.IGNORECASE)
+
+                # Remove any leftover trailing punctuation/whitespace again
+                vendor = re.sub(r"[.,\s]+$", "", vendor)
+
+            if vendor and model:
+                return f"{vendor} {model}"
+            elif model:
+                return model
+            elif vendor:
+                return vendor
+            else:
+                return platform.uname().node
+
+        elif system == "Darwin":  # macOS
+            try:
+                output = subprocess.check_output(
+                    ["system_profiler", "SPHardwareDataType"],
+                    text=True
+                )
+                model_name, model_id = None, None
+                for line in output.splitlines():
+                    if "Model Name:" in line:
+                        model_name = line.split(":", 1)[1].strip()
+                    elif "Model Identifier:" in line:
+                        model_id = line.split(":", 1)[1].strip()
+                if model_name and model_id:
+                    return f"Apple {model_name} ({model_id})"
+                elif model_name:
+                    return f"Apple {model_name}"
+                else:
+                    return "Apple Mac"
+            except Exception:
+                return platform.uname().node
+
         else:
             return platform.uname().node
+
     except Exception:
         return "Unknown System"
-
 
 # ------------------------------
 # CPU
@@ -182,7 +225,7 @@ def get_ram_info():
                 "powershell", "-Command",
                 "$ProgressPreference = 'SilentlyContinue'; "
                 "Get-CimInstance Win32_PhysicalMemory | "
-                "Select-Object Capacity, Speed | ConvertTo-Json"
+                "Select-Object Capacity, Speed, SMBIOSMemoryType | ConvertTo-Json"
             ]
             output = subprocess.check_output(cmd, text=True).strip()
 
@@ -191,88 +234,115 @@ def get_ram_info():
             if isinstance(dimms, dict):
                 dimms = [dimms]
 
-            sizes, speeds = [], []
+            sizes, speeds, types = [], [], []
+            type_map = {
+                20: "DDR",
+                21: "DDR2",
+                24: "DDR3",
+                26: "DDR4",
+                27: "LPDDR",
+                28: "LPDDR2",
+                29: "LPDDR3",
+                30: "LPDDR4",
+            }
+
             for d in dimms:
-                cap = int(d.get("Capacity", 0))
+                cap = int(d.get("Capacity", 0) or 0)
                 spd = d.get("Speed")
+                tcode = d.get("SMBIOSMemoryType")
+
                 if cap:
                     gib = cap / (1024 ** 3)  # bytes → GiB
-                    sizes.append(round(gib,2))
+                    val = round(gib, 2)
+                    # if val is an integer, make it int not float
+                    if val.is_integer():
+                        val = int(val)
+                    sizes.append(val)
+
                 if spd and str(spd).isdigit():
                     speeds.append(int(spd))
+                if tcode and str(tcode).isdigit():
+                    tcode = int(tcode)
+                    if tcode in type_map:
+                        types.append(type_map[tcode])
+
+            total = sum(sizes) if sizes else None
+            if total is not None and isinstance(total, float) and total.is_integer():
+                total = int(total)
 
             ram_info["DIMM Sizes (GB)"] = sizes
-            ram_info["Advertised RAM (GB)"] = sum(sizes)
+            ram_info["Advertised RAM (GB)"] = total
             if speeds:
                 ram_info["Memory Speed (MHz)"] = sorted(set(speeds))
+            if types:
+                ram_info["Memory Type"] = types[0] if all(x == types[0] for x in types) else types
 
         except Exception as e:
             ram_info["Error"] = f"Windows query failed: {e}"
 
     elif system == "Linux":
+        ram_info["IsLikelyDDR"] = None  # default        
+        sizes, types, speeds = [], [], []
+
+        # ✅ Always get usable/total memory from /proc/meminfo
         try:
-            print("Attempting dmidecode for RAM info...")
-            output = subprocess.check_output(
-                ["dmidecode", "-t", "memory"],
-                stderr=subprocess.DEVNULL, text=True
-            )
-            print("Successfully retrieved RAM info from dmidecode.")
-
-            # DIMM sizes (MB → GiB)
-            sizes_mb = re.findall(r"Size:\s+(\d+)\s+MB", output)
-            print(f"sizes_mb: {sizes_mb}")  # Debugging line 
-
-            sizes_gb = [round(int(s) / 1024, 2) for s in sizes_mb if s.isdigit()]
-            advertised_total_gb = sum(sizes_gb) if sizes_gb else None
-            print(f"advertised_total_gb: {advertised_total_gb}")  # Debugging line
-    
-            # Speeds
-            speeds = re.findall(r"Speed:\s+(\d+)\s+MT/s", output)
-
-            # Usable RAM from /proc/meminfo
-            memtotal_kb = None
             with open("/proc/meminfo") as f:
                 for line in f:
                     if line.startswith("MemTotal:"):
-                        print(f"{line=}")  # Debugging line
-                        memtotal_kb = int(line.split()[1])
+                        kb = int(line.split()[1])  # value in kB
+                        gib = kb / 1024**2        # kB → GiB
+                        advertised_ram = int(math.ceil(gib / 4.0)) * 4  # round up to nearest 4 GB
+                        ram_info["Advertised RAM (GB)"] = advertised_ram
+                        ram_info["DIMM Sizes (GB)"] = [round(gib, 2)]
+                        ram_info["Usable RAM (GiB)"] = round(gib, 2)
                         break
-            usable_gb = round(memtotal_kb / 1024**2, 2) if memtotal_kb else None
+        except Exception as e:
+            ram_info["Error"] = f"/proc/meminfo query failed: {e}"
 
-            # Reserved = advertised - usable
-            reserved_mb = None
-            if advertised_total_gb and usable_gb:
-                reserved_mb = round(advertised_total_gb * 1024 - usable_gb * 1024, 1) * 1024
-                # simpler: compute directly in MB
-                advertised_mb = sum(int(s) for s in sizes_mb if s.isdigit())
-                reserved_mb = advertised_mb - (memtotal_kb // 1024)
+        # ✅ Try decode-dimms for type + speed (optional)
+        try:
+            output = subprocess.check_output(
+                ["decode-dimms"], text=True, stderr=subprocess.DEVNULL
+            )
 
-            # Populate results
-            ram_info["DIMM Sizes (GB)"] = sizes_gb
-            ram_info["Advertised RAM (GB)"] = advertised_total_gb
-            if speeds:
-                ram_info["Memory Speed (MHz)"] = sorted({int(s) for s in speeds if s.isdigit()})
-            if usable_gb is not None:
-                ram_info["Usable RAM (GiB)"] = usable_gb
-            if reserved_mb is not None:
-                ram_info["Reserved RAM (MB)"] = reserved_mb
+            raw_types = re.findall(r"(DDR\d(?:-\d+)?)", output)
+            raw_types = list(set(raw_types))  # deduplicate
+            ram_info["IsLikelyDDR"] = True
+
+            if raw_types:
+                base_type = None
+                max_speed = None
+                for t in raw_types:
+                    if "-" in t:
+                        family, mhz = t.split("-")
+                        mhz = int(mhz)
+                        if max_speed is None or mhz > max_speed:
+                            max_speed = mhz
+                        base_type = family
+                    else:
+                        base_type = t
+                if base_type:
+                    ram_info["Memory Type"] = base_type
+                if max_speed:
+                    ram_info["Memory Speed (MHz)"] = [max_speed]
 
         except Exception:
-            # 🔄 Fallback: /proc/meminfo (no root required)
-            try:
-                with open("/proc/meminfo") as f:
-                    for line in f:
-                        if line.startswith("MemTotal:"):
-                            kb = int(line.split()[1])   # value in kB
-                            gib = kb / 1024**2   # kB → GiB
-                            # Estimate advertised total as nearest multiple of 4 GB
-                            advertised_ram = int(math.ceil(gib / 4.0)) * 4
+            # CPU fallback if still unknown
+            if ram_info.get("IsLikelyDDR") is None:
+                try:
+                    with open("/proc/cpuinfo") as f:
+                        cpuinfo = f.read()
+                    if re.search(r"(Core|Xeon|Pentium\s4|Celeron\sD|Athlon\s64|Opteron|Turion|Phenom|i[3579]|Ryzen)", cpuinfo, re.I):
+                        ram_info["IsLikelyDDR"] = True
+                    else:
+                        ram_info["IsLikelyDDR"] = False
+                except Exception:
+                    ram_info["IsLikelyDDR"] = False
 
-                            ram_info["Advertised RAM (GB)"] = advertised_ram
-                            ram_info["DIMM Sizes (GB)"] = [round(gib,2)]
-                            break
-            except Exception as e2:
-                ram_info["Error"] = f"Linux query failed: {e2}"
+            if ram_info["IsLikelyDDR"]: 
+                ram_info["Memory Type"] = "DDR"
+            else:
+                ram_info["Memory Type"] = ""
 
     elif system == "Darwin":  # macOS
         try:
@@ -312,9 +382,14 @@ def get_ram_info():
                 ram_info["Memory Type"] = types[0] if len(types) == 1 else types
 
             # Speeds (lines like "Speed: 1333 MHz")
-            speed_matches = re.findall(r"Speed:\s+(\d+)\s+MHz", text_out)
-            if speed_matches:
-                speeds = [int(s) for s in speed_matches]
+            max_speeds = re.findall(r"Maximum Speed:\s+(\d+)\s+MT/s", output)
+            cfg_speeds = re.findall(r"Speed:\s+(\d+)\s+MT/s", output)
+
+            speeds = []
+            if max_speeds:
+                speeds = [int(s) for s in max_speeds if s.isdigit()]
+            elif cfg_speeds:
+                speeds = [int(s) for s in cfg_speeds if s.isdigit()]
 
             # Populate results
             if sizes:
@@ -345,14 +420,16 @@ def get_ram_info():
 # ------------------------------
 
 def get_storage_info():
-    """Return list of storage devices with model, size, bus type."""
+    """Return list of storage devices with model, size, bus type, and media type (HDD/SSD/USB/NVMe/MMC)."""
     drives = []
-    if platform.system() == "Windows":
+    system = platform.system()
+
+    if system == "Windows":
         try:
             cmd = [
                 "powershell", "-Command",
                 "Get-PhysicalDisk | Select-Object FriendlyName, Manufacturer, "
-                "SerialNumber, Size, BusType | Format-List"
+                "SerialNumber, Size, BusType, MediaType | Format-List"
             ]
             output = subprocess.check_output(cmd, text=True)
             blocks = re.split(r"\n\s*\n", output.strip())
@@ -364,45 +441,115 @@ def get_storage_info():
                         drive_info[key.strip()] = val.strip()
                 if drive_info:
                     size = drive_info.get("Size")
+                    bus = drive_info.get("BusType", "").upper()
+                    media = drive_info.get("MediaType", "").upper()
+
+                    # Decide MediaType
+                    if bus == "USB":
+                        media_type = "USB"
+                    elif bus in ("NVME", "SATA"):
+                        if media == "SSD":
+                            media_type = "SSD"
+                        elif media == "HDD":
+                            media_type = "HDD"
+                        else:
+                            media_type = bus  # fallback
+                    else:
+                        media_type = bus or "Unknown"
+
                     drives.append({
                         "Model": drive_info.get("FriendlyName"),
                         "Manufacturer": drive_info.get("Manufacturer"),
                         "Serial": drive_info.get("SerialNumber"),
                         "Size (GB)": round(int(size) / (1000**3), 2) if size and size.isdigit() else None,
-                        "BusType": drive_info.get("BusType")
+                        "BusType": bus,
+                        "MediaType": media_type
                     })
         except Exception as e:
             drives.append({"Error": str(e)})
 
-    elif platform.system() == "Linux":
+    elif system == "Linux":
         try:
             output = subprocess.check_output(
                 ["lsblk", "-d", "-o", "NAME,MODEL,VENDOR,SERIAL,SIZE,TRAN"],
                 stderr=subprocess.DEVNULL, text=True
             ).strip().splitlines()
+
             for line in output[1:]:
                 parts = line.split(None, 5)
                 if len(parts) == 6:
                     name, model, vendor, serial, size, tran = parts
+                    dev_path = f"/dev/{name}"
+                    bus = tran.upper()
+
+                    # Rotational flag for HDD/SSD
+                    rota_path = f"/sys/block/{name}/queue/rotational"
+                    media_type = bus
+                    try:
+                        with open(rota_path) as f:
+                            rota = f.read().strip()
+                            if bus in ("SATA", "NVME"):
+                                media_type = "SSD" if rota == "0" else "HDD"
+                    except Exception:
+                        pass
+
                     drives.append({
-                        "Device": f"/dev/{name}",
+                        "Device": dev_path,
                         "Model": model,
                         "Vendor": vendor,
                         "Serial": serial,
                         "Size": size,
-                        "BusType": tran
+                        "BusType": bus,
+                        "MediaType": media_type
                     })
+        except Exception as e:
+            drives.append({"Error": str(e)})
+
+    elif system == "Darwin":  # macOS
+        try:
+            disk_list = subprocess.check_output(
+                ["diskutil", "list"], text=True
+            ).strip().splitlines()
+
+            for line in disk_list:
+                m = re.match(r"^\s*(\S+)\s+\(internal.*\):", line)
+                if m:
+                    dev = m.group(1)  # e.g. disk0
+                    try:
+                        info = subprocess.check_output(
+                            ["diskutil", "info", dev], text=True
+                        )
+                        drive = {"Device": f"/dev/{dev}"}
+                        media_type, size = None, None
+                        for l in info.splitlines():
+                            if "Device / Media Name:" in l:
+                                drive["Model"] = l.split(":", 1)[1].strip()
+                            elif "Disk Size:" in l and "(" in l:
+                                size = l.split("(")[0].split(":")[1].strip()
+                            elif "Solid State:" in l:
+                                if "Yes" in l:
+                                    media_type = "SSD"
+                                elif "No" in l:
+                                    media_type = "HDD"
+                            elif "Protocol:" in l:
+                                proto = l.split(":", 1)[1].strip().upper()
+                                if media_type is None:
+                                    media_type = proto  # e.g. USB
+
+                        drive["Size"] = size
+                        drive["MediaType"] = media_type or "Unknown"
+                        drives.append(drive)
+                    except Exception:
+                        continue
         except Exception as e:
             drives.append({"Error": str(e)})
 
     return drives
 
+
 # ------------------------------
 # OS
 # ------------------------------
-
-import platform
-import subprocess
 
 def get_MacOS_version() -> str:
     """
@@ -489,7 +636,7 @@ def system_summary():
 
     # RAM
     ram_total = sysinfo["RAM"].get("Advertised RAM (GB)")
-    ram_type = sysinfo["RAM"].get("Memory Type", "DDR?")
+    ram_type = sysinfo["RAM"].get("Memory Type", "")
     ram_speed = sysinfo["RAM"].get("Memory Speed (MHz)", [])
 
     # Format speed nicely (e.g. "1333" → "1333")
@@ -504,7 +651,8 @@ def system_summary():
         model = d.get("Model", "UnknownDrive")
         size = d.get("Size (GB)") or d.get("Size")
         size_str = f"{int(round(size))}GB" if isinstance(size, (int, float)) else str(size)
-        storage_parts.append(f"{model} {size_str}")
+        media_type = d.get("MediaType", "")
+        storage_parts.append(f"{model} {size_str} {media_type}".strip())
     storage_str = " | ".join(storage_parts)
 
     # GPU
@@ -516,9 +664,9 @@ def system_summary():
     # OS
     os_info = sysinfo["OS"]
 
-    retStr = f"{system_model} | {cpu} | {ram_str} RAM | {storage_str} | {os_info}"
+    retStr = f"{system_model} | {cpu} CPU | {ram_str} | {storage_str} | {os_info} OS"
     if gpu:
-        retStr += f" | GPU: {gpu}"
+        retStr += f" | {gpu} GPU"
 
     return retStr
 
@@ -560,5 +708,4 @@ def snapshot_dashboard():
 # ------------------------------
 
 if __name__ == "__main__":
-    print(get_ram_info())
-    print(system_summary())    
+    print(system_summary())
