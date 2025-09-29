@@ -596,6 +596,40 @@ def get_os_info():
         return f"{system} {platform.release()}"
 
 # ------------------------------
+# GPU
+# ------------------------------
+
+def get_gpu_info():
+    """Return GPU info dict (raw name, friendly name, memory, driver version)."""
+    gpus = []
+    try:
+        gpu_list = GPUtil.getGPUs()
+        for gpu in gpu_list:
+            gpu_memory = gpu.memoryTotal if gpu.memoryTotal else None
+            if gpu_memory and isinstance(gpu_memory, float) and gpu_memory.is_integer():
+                gpu_memory = int(gpu_memory)
+                if math.log(gpu_memory,2) >= 10:
+                    gpu_memory_str = f"{gpu_memory//1024}GB"
+                else:
+                    gpu_memory_str = f"{gpu_memory}MB"
+            else:
+                gpu_memory_str = ""
+
+            gpu_str = gpu.name + (f" ({gpu_memory_str})" if gpu_memory_str else "")
+
+            gpus.append({
+                "GPU": gpu_str,
+                "GPU Name": gpu.name,
+                "GPU Memory": gpu_memory_str,
+                "Driver Version": gpu.driver 
+            })
+    except Exception as e:
+        gpus.append({"Error": str(e)})
+    return gpus
+
+
+
+# ------------------------------
 # Diagnostics Summary
 # ------------------------------
 
@@ -606,13 +640,9 @@ def get_system_diagnostics():
         "CPU": get_cpu_info(),
         "RAM": get_ram_info(),
         "Storage": get_storage_info(),
-        "OS": get_os_info()        
+        "OS": get_os_info(),
+        "GPU": get_gpu_info() if checkGPU else []           
     }
-    try:
-        gpu_list = GPUtil.getGPUs()
-        diagnostics["GPU"] = [gpu.name for gpu in gpu_list] if gpu_list else []
-    except Exception:
-        diagnostics["GPU"] = []
     return diagnostics
 
 
@@ -655,21 +685,21 @@ def system_summary():
         storage_parts.append(f"{model} {size_str} {media_type}".strip())
     storage_str = " | ".join(storage_parts)
 
-    # GPU
-    if checkGPU: 
-        gpu = ",".join(sysinfo["GPU"]) if sysinfo["GPU"] else "No GPU"
-    else:
-        gpu = ""
-
     # OS
     os_info = sysinfo["OS"]
+
+    # GPU
+    gpu = ""
+    if checkGPU:
+        gpu_info = sysinfo["GPU"]
+        if gpu_info and isinstance(gpu_info, list) and "Error" not in gpu_info[0]:
+            gpu = ",".join([f"{info['GPU']} " for info in gpu_info]).strip()
 
     retStr = f"{system_model} | {cpu} CPU | {ram_str} | {storage_str} | {os_info} OS"
     if gpu:
         retStr += f" | {gpu} GPU"
 
     return retStr
-
 
 # ------------------------------
 # Dashboard
