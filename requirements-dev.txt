@@ -1,10 +1,10 @@
-ipykernel
+ipykernel # # -omit-info; for Jupyter
 pandas
 polars
 dask
 pyarrow
 matplotlib
 seaborn
-jupyterlab
+jupyterlab # # -omit-info; for Jupyter
 duckdb
-gputil
+gputil # -import-name GPUtil

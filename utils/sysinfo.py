@@ -12,6 +12,8 @@ import re
 import shutil
 import subprocess
 
+import pystackinfo
+
 checkGPU = False
 try:
     import GPUtil
@@ -608,25 +610,24 @@ def get_gpu_info():
             gpu_memory = gpu.memoryTotal if gpu.memoryTotal else None
             if gpu_memory and isinstance(gpu_memory, float) and gpu_memory.is_integer():
                 gpu_memory = int(gpu_memory)
-                if math.log(gpu_memory,2) >= 10:
+                if math.log(gpu_memory,2) >= 10 and math.log(gpu_memory,2).is_integer():    
                     gpu_memory_str = f"{gpu_memory//1024}GB"
                 else:
                     gpu_memory_str = f"{gpu_memory}MB"
             else:
                 gpu_memory_str = ""
 
-            gpu_str = gpu.name + (f" ({gpu_memory_str})" if gpu_memory_str else "")
+            gpu_str = gpu.name + (f" {gpu_memory_str}" if gpu_memory_str else "")
 
             gpus.append({
                 "GPU": gpu_str,
                 "GPU Name": gpu.name,
                 "GPU Memory": gpu_memory_str,
-                "Driver Version": gpu.driver 
+                "Driver Version": gpu.driver  
             })
     except Exception as e:
         gpus.append({"Error": str(e)})
     return gpus
-
 
 
 # ------------------------------
@@ -698,6 +699,9 @@ def system_summary():
     retStr = f"{system_model} | {cpu} CPU | {ram_str} | {storage_str} | {os_info} OS"
     if gpu:
         retStr += f" | {gpu} GPU"
+
+    py_stack = pystackinfo.pystack_summary()
+    retStr += f" | {py_stack}"
 
     return retStr
 
