@@ -469,11 +469,10 @@ def get_storage_info():
                     })
         except Exception as e:
             drives.append({"Error": str(e)})
-
     elif system == "Linux":
         try:
             output = subprocess.check_output(
-                ["lsblk", "-d", "-o", "NAME,MODEL,VENDOR,SERIAL,SIZE,TRAN"],
+                ["lsblk", "-bd", "-o", "NAME,MODEL,VENDOR,SERIAL,SIZE,TRAN"],
                 stderr=subprocess.DEVNULL, text=True
             ).strip().splitlines()
 
@@ -500,13 +499,12 @@ def get_storage_info():
                         "Model": model,
                         "Vendor": vendor,
                         "Serial": serial,
-                        "Size": size,
+                        "Size (GB)": round(int(size) / (1000**3), 2),
                         "BusType": bus,
                         "MediaType": media_type
                     })
         except Exception as e:
             drives.append({"Error": str(e)})
-
     elif system == "Darwin":  # macOS
         try:
             disk_list = subprocess.check_output(
