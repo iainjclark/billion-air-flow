@@ -5,6 +5,8 @@ Provides CPU, RAM, GPU, and storage diagnostic info plus a top-style dashboard.
 Works on Windows, Linux (Ubuntu), and macOS.
 """
 
+import ast
+import json
 import math
 import platform
 import psutil
@@ -40,10 +42,28 @@ def get_system_model():
                 text=True
             ).strip()
 
+            vendor = subprocess.check_output(
+                [
+                    "powershell", "-Command",
+                    "Get-CimInstance -ClassName Win32_ComputerSystemProduct | "
+                    "Select-Object Vendor | Format-Table -HideTableHeaders"
+                ],
+                text=True
+            ).strip()
+
+            # Remove trailing punctuation (.,)
+            vendor = re.sub(r"[.,\s]+$", "", vendor)
+
+            # Remove common company suffixes
+            vendor = re.sub(r"\b(inc|inc\.|ltd|ltd\.|corp|co\.?)\b$", "", vendor, flags=re.IGNORECASE)
+
+            # Remove any leftover trailing punctuation/whitespace again
+            vendor = re.sub(r"[.,\s]+$", "", vendor)
+
             if version == '':
-                queryStr = "Select-Object Vendor, Name | Format-Table -HideTableHeaders"
+                queryStr = "Select-Object Name | Format-Table -HideTableHeaders"
             else:
-                queryStr = "Select-Object Vendor, Version | Format-Table -HideTableHeaders"
+                queryStr = "Select-Object Version | Format-Table -HideTableHeaders"
 
             out = subprocess.check_output(
                 [
@@ -52,7 +72,8 @@ def get_system_model():
                 ],
                 text=True
             ).strip()
-            return out
+
+            return vendor + ' ' + out
 
         elif system == "Linux":
             vendor, model = None, None
@@ -195,7 +216,7 @@ def make_friendly_cpu_name(raw_name):
             generation = f"{str(model_num)[0]}th Gen"
         else:  # e.g. 10700 -> 10th gen
             generation = f"{str(model_num)[:2]}th Gen"
-        return f"Intel Core {family}-{model_num} ({generation})"
+        return f"Intel Core {family}-{model_num}"  # optionally: + f" ({generation})"
 
     # AMD Ryzen
     if "Ryzen" in name:
@@ -421,6 +442,28 @@ def get_ram_info():
 # Storage
 # ------------------------------
 
+def bytes_to_str(size_bytes):
+    """Convert size in bytes to a human-readable string in GB."""
+    if size_bytes is None:
+        return "Unknown"
+    size_tb = round(size_bytes / (1000**4))
+    size_gb = round(size_bytes / (1000**3))
+    size_mb = round(size_bytes / (1000**2))
+    size_kb = round(size_bytes / 1000)
+    return f"{size_tb}TB" if size_gb >= 1000 else f"{size_gb}GB" if size_mb >= 1000 else f"{size_mb}MB" if size_kb >= 1000 else f"{size_kb}KB" if size_kb >= 1  else f"{size_bytes}B"
+
+def is_linux_storage_removable(dev_name: str) -> bool:
+    """
+    Returns True if the given device is removable, False otherwise.
+    dev_name is like 'sda', 'nvme0n1', etc.
+    """
+    removable_path = f"/sys/block/{dev_name}/removable"
+    try:
+        with open(removable_path) as f:
+            return f.read().strip() == "1"
+    except FileNotFoundError:
+        return False
+    
 def get_storage_info():
     """Return list of storage devices with model, size, bus type, and media type (HDD/SSD/USB/NVMe/MMC)."""
     drives = []
@@ -463,48 +506,68 @@ def get_storage_info():
                         "Model": drive_info.get("FriendlyName"),
                         "Manufacturer": drive_info.get("Manufacturer"),
                         "Serial": drive_info.get("SerialNumber"),
-                        "Size (GB)": round(int(size) / (1000**3), 2) if size and size.isdigit() else None,
+                        "Size": bytes_to_str(int(size)) if size and size.isdigit() else size if size else None,
                         "BusType": bus,
                         "MediaType": media_type
                     })
         except Exception as e:
             drives.append({"Error": str(e)})
+
     elif system == "Linux":
-        try:
-            output = subprocess.check_output(
-                ["lsblk", "-bd", "-o", "NAME,MODEL,VENDOR,SERIAL,SIZE,TRAN"],
-                stderr=subprocess.DEVNULL, text=True
-            ).strip().splitlines()
+        output = subprocess.check_output(
+            ["lsblk", "-J", "-bd", "-o", "NAME,MODEL,VENDOR,SERIAL,SIZE,TRAN"],
+            stderr=subprocess.DEVNULL, text=True
+        )
+        output = json.loads(output)
+        blockdevices = output['blockdevices']
 
-            for line in output[1:]:
-                parts = line.split(None, 5)
-                if len(parts) == 6:
-                    name, model, vendor, serial, size, tran = parts
-                    dev_path = f"/dev/{name}"
-                    bus = tran.upper()
+        storagedevices = []
+        for dev in blockdevices:
+            name = dev.get("name")
+            if not name.startswith("loop") and not name.startswith("ram"):
+                storagedevices.append(dev)
 
-                    # Rotational flag for HDD/SSD
-                    rota_path = f"/sys/block/{name}/queue/rotational"
-                    media_type = bus
-                    try:
-                        with open(rota_path) as f:
-                            rota = f.read().strip()
-                            if bus in ("SATA", "NVME"):
-                                media_type = "SSD" if rota == "0" else "HDD"
-                    except Exception:
-                        pass
+        for dev in storagedevices:
+            try:
+                name = dev.get("name")
+                model = dev.get("model", "")
+                vendor = dev.get("vendor", "")
+                serial = dev.get("serial", "")
+                size = dev.get("size", "")
+                tran = dev.get("tran", "").strip().upper() if dev.get("tran") else "UNKNOWN"
 
-                    drives.append({
-                        "Device": dev_path,
-                        "Model": model,
-                        "Vendor": vendor,
-                        "Serial": serial,
-                        "Size (GB)": round(int(size) / (1000**3), 2),
-                        "BusType": bus,
-                        "MediaType": media_type
-                    })
-        except Exception as e:
-            drives.append({"Error": str(e)})
+                name = name.strip() if isinstance(name, str) else name
+                model = model.strip() if isinstance(model, str) else model
+                vendor = vendor.strip() if isinstance(vendor, str) else vendor
+                serial = serial.strip() if isinstance(serial, str) else serial
+                size = size.strip() if isinstance(size, str) else size
+
+                dev_path = f"/dev/{name}"
+                bus = tran.upper()
+                bus = bus.split(' ')[-1]
+
+                # Rotational flag for HDD/SSD
+                rota_path = f"/sys/block/{name}/queue/rotational"
+                media_type = bus.split(' ')[-1]
+
+                with open(rota_path) as f:
+                    rota = f.read().strip()
+                    if bus in ("SATA", "NVME"):
+                        media_type = "SSD" if rota == "0" else "HDD"
+
+                drives.append({
+                    "Device": dev_path,
+                    "Model": model,
+                    "Vendor": vendor,
+                    "Serial": serial,
+                    "Size": size if size and isinstance(size, str) else bytes_to_str(int(size)) if size else None,
+                    "BusType": bus,
+                    "MediaType": media_type
+                })
+            except Exception as e:
+                drives.append({"Error": str(e)})
+
+
     elif system == "Darwin":  # macOS
         try:
             disk_list = subprocess.check_output(
@@ -512,7 +575,7 @@ def get_storage_info():
             ).strip().splitlines()
 
             for line in disk_list:
-                m = re.match(r"^\s*(\S+)\s+\(internal.*\):", line)
+                m = re.match(r"^\s*(\S+)\s+\(.*\):", line)
                 if m:
                     dev = m.group(1)  # e.g. disk0
                     try:
@@ -536,8 +599,18 @@ def get_storage_info():
                                 if media_type is None:
                                     media_type = proto  # e.g. USB
 
+                        print(f"{size=}")
+#                        print(re.search(r'"([^"]+)"', size).group(1))
+#                        print(ast.literal_eval(size)[0])
+#
+#                        size = re.search(r'"([^"]+)"', size).group(1) # ast.literal_eval(size)[0]
                         drive["Size"] = size
                         drive["MediaType"] = media_type or "Unknown"
+
+
+                        print(f"{drive=}")
+
+
                         drives.append(drive)
                     except Exception:
                         continue
@@ -671,17 +744,23 @@ def system_summary():
     # Format speed nicely (e.g. "1333" → "1333")
     ram_speed_str = f"-{','.join(map(str, ram_speed))}" if ram_speed else ""
 
-    # Final string, e.g. "4 GB DDR3-1333 RAM"
-    ram_str = f"{ram_total} GB {ram_type}{ram_speed_str} RAM"
+    # Final string, e.g. "4GB DDR3-1333 RAM"
+    ram_str = f"{ram_total}GB {ram_type}{ram_speed_str} RAM"
     
     # Storage
     storage_parts = []
+    print("STORAGE:", sysinfo["Storage"])
     for d in sysinfo["Storage"]:
+        vendor = d.get("Vendor", "")
+        if vendor:
+            vendor = vendor.strip()
+            vendor = "" if vendor.upper() =="SATA" or vendor.upper() =="ATA" or vendor.upper() =="NVME" else vendor
+        else:
+            vendor = ""  
         model = d.get("Model", "UnknownDrive")
-        size = d.get("Size (GB)") or d.get("Size")
-        size_str = f"{int(round(size))}GB" if isinstance(size, (int, float)) else str(size)
+        size = d.get("Size")
         media_type = d.get("MediaType", "")
-        storage_parts.append(f"{model} {size_str} {media_type}".strip())
+        storage_parts.append(f"{vendor} {model} {size} {media_type}".strip())
     storage_str = " | ".join(storage_parts)
 
     # OS
