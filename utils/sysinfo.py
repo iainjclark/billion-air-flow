@@ -11,6 +11,7 @@ import math
 import platform
 import psutil
 import re
+import requests
 import shutil
 import subprocess
 
@@ -26,6 +27,60 @@ except ImportError:
 # ------------------------------
 # System Model
 # ------------------------------
+
+def merge_model_names(names):
+    if not names:
+        return ""
+    if isinstance(names, str):
+        return names
+    if isinstance(names, list) and len(names) == 1:
+        return names[0]
+
+    prefixes = []
+    insides = []
+
+    for n in names:
+        if "(" in n and ")" in n:
+            pre, inside = n.split("(", 1)
+            prefixes.append(pre.strip())
+            tokens = inside.strip(")").split(", ")
+            insides.append(tokens)
+        else:
+            prefixes.append(n.strip())
+            insides.append([])
+
+    # --- Prefix merge ---
+    unique_prefixes = sorted(set(prefixes))
+    if len(unique_prefixes) == 1:
+        merged_prefix = unique_prefixes[0]
+    else:
+        simplified = [p for p in unique_prefixes if not any(x in p for x in ["Rack", "GHz"])]
+        if simplified:
+            merged_prefix = " or ".join(sorted(set(simplified)))
+        else:
+            merged_prefix = " or ".join(unique_prefixes)
+
+    # --- Inside parentheses ---
+    # Pad token lists to the same length
+    max_len = max(len(t) for t in insides)
+    padded = [t + [""] * (max_len - len(t)) for t in insides]
+
+    merged_inside = []
+    for cols in zip(*padded):
+        uniq = [c for c in sorted(set(cols)) if c]
+        if not uniq:
+            continue
+        if len(uniq) == 1:
+            merged_inside.append(uniq[0])
+        else:
+            merged_inside.append(" or ".join(uniq))
+
+    if merged_inside:
+        return f"{merged_prefix} ({', '.join(merged_inside)})"
+    else:
+        return merged_prefix
+
+
 
 def get_system_model():
     """Return system model string for Windows/Linux/macOS."""
@@ -109,7 +164,10 @@ def get_system_model():
             else:
                 return platform.uname().node
 
-        elif system == "Darwin":  # macOS
+        elif system == "Darwin":  # MacOS
+            APPLE_JSON_URL = "https://raw.githubusercontent.com/kyle-seongwoo-jun/apple-device-identifiers/main/mac-device-identifiers.json"
+            model_map = requests.get(APPLE_JSON_URL, timeout=5).json()
+
             try:
                 output = subprocess.check_output(
                     ["system_profiler", "SPHardwareDataType"],
@@ -121,6 +179,16 @@ def get_system_model():
                         model_name = line.split(":", 1)[1].strip()
                     elif "Model Identifier:" in line:
                         model_id = line.split(":", 1)[1].strip()
+
+                # Try GitHub JSON mapping first
+                if model_id:
+                    try:
+                        if model_id in model_map:
+                            return merge_model_names(model_map[model_id])
+                    except Exception:
+                        pass  # fall through to our existing logic
+
+                # Fallbacks
                 if model_name and model_id:
                     return f"Apple {model_name} ({model_id})"
                 elif model_name:
@@ -404,9 +472,9 @@ def get_ram_info():
             if types:
                 ram_info["Memory Type"] = types[0] if len(types) == 1 else types
 
-            # Speeds (lines like "Speed: 1333 MHz")
-            max_speeds = re.findall(r"Maximum Speed:\s+(\d+)\s+MT/s", output)
-            cfg_speeds = re.findall(r"Speed:\s+(\d+)\s+MT/s", output)
+            # Speeds (lines like "Speed: 1333 MHz" or "Maximum Speed: 1600 MHz")
+            max_speeds = re.findall(r"Maximum Speed:\s+(\d+)\s+MHz", text_out)
+            cfg_speeds = re.findall(r"Speed:\s+(\d+)\s+MHz", text_out)
 
             speeds = []
             if max_speeds:
@@ -599,19 +667,10 @@ def get_storage_info():
                                 if media_type is None:
                                     media_type = proto  # e.g. USB
 
-                        print(f"{size=}")
-#                        print(re.search(r'"([^"]+)"', size).group(1))
-#                        print(ast.literal_eval(size)[0])
-#
-#                        size = re.search(r'"([^"]+)"', size).group(1) # ast.literal_eval(size)[0]
                         drive["Size"] = size
                         drive["MediaType"] = media_type or "Unknown"
-
-
-                        print(f"{drive=}")
-
-
                         drives.append(drive)
+
                     except Exception:
                         continue
         except Exception as e:
@@ -749,7 +808,6 @@ def system_summary():
     
     # Storage
     storage_parts = []
-    print("STORAGE:", sysinfo["Storage"])
     for d in sysinfo["Storage"]:
         vendor = d.get("Vendor", "")
         if vendor:
