@@ -8,3 +8,4 @@ seaborn
 jupyterlab # # -omit-info; for Jupyter
 duckdb
 gputil # -import-name GPUtil
+requests
